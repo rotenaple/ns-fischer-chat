@@ -1,0 +1,15 @@
+services:
+  ns-fischer-chat:
+    # Use pre-built image from GHCR, or uncomment build for local
+    image: ghcr.io/${GITHUB_REPO:-rotenaple/ns-fischer-chat}:latest
+    # build: .
+    container_name: ns-fischer-chat
+    volumes:
+      - ./config.json:/app/config.json:ro
+      - ns-fischer-chat-state:/app/data
+    environment:
+      - STATE_FILE=/app/data/state.json
+    restart: unless-stopped
+
+volumes:
+  ns-fischer-chat-state:

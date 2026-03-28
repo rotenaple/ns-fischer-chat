@@ -1,0 +1,7 @@
+{
+  "userAgent": "YourMainNation",
+  "webhookUrl": "https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN",
+  "rmbNations": ["Nation1", "Nation2"],
+  "rmbRegions": ["Region1", "Region2"],
+  "dispatchNations": ["Nation1", "Nation2"]
+}

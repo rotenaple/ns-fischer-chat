@@ -1,0 +1,14 @@
+{
+  "name": "ns-fischer-chat",
+  "version": "1.0.0",
+  "description": "NationStates RMB and Dispatch monitor with Discord notifications",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "discord-webhook-node": "^1.1.8",
+    "fast-xml-parser": "^4.3.2"
+  }
+}
