@@ -66,35 +66,44 @@ async function fetchXML(url, userAgent) {
   return parser.parse(xml);
 }
 
+// ─── HTML Entity Decoding ─────────────────────────────────────────────────────
+
+const NAMED_ENTITIES = {
+  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: "\u00a0",
+};
+
+// NationStates stores RMB text HTML-escaped ("&#128514;" for emoji) and hands it
+// back escaped in both the SSE payload and the API's MESSAGE field. Decode once
+// so Discord renders the characters instead of the entity codes.
+function decodeHtmlEntities(text) {
+  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (match, entity) => {
+    try {
+      if (entity[0] === "#") {
+        const code = entity[1] === "x" || entity[1] === "X"
+          ? parseInt(entity.slice(2), 16)
+          : parseInt(entity.slice(1), 10);
+        if (!Number.isFinite(code) || code < 0 || code > 0x10ffff) return match;
+        return String.fromCodePoint(code);
+      }
+      return NAMED_ENTITIES[entity.toLowerCase()] ?? match;
+    } catch {
+      return match;
+    }
+  });
+}
+
 // ─── Event Handlers ───────────────────────────────────────────────────────────
 
-async function handleRMB(event, config, webhook) {
-  const { nation, postId, region, raw } = event;
+async function handleRMB(event, webhook) {
+  const { nation, postId, region, message } = event;
   const eventId = `rmb-${postId}`;
   
   if (isProcessed(eventId)) return;
   
   console.log(`[RMB] ${nation} posted in ${region}`);
 
-  // Wait for NS API to index
-  await sleep(2000);
-
-  let content = "";
-  let timestamp = Math.floor(Date.now() / 1000);
-
-  try {
-    const url = `https://www.nationstates.net/cgi-bin/api.cgi?region=${region}&q=messages&fromid=${postId}&limit=1`;
-    const result = await fetchXML(url, config.userAgent);
-    
-    const post = result?.REGION?.MESSAGES?.POST;
-    if (post) {
-      const p = Array.isArray(post) ? post[0] : post;
-      content = (p.MESSAGE || "").trim();
-      timestamp = parseInt(p.TIMESTAMP) || timestamp;
-    }
-  } catch (e) {
-    console.error(`[RMB] API error: ${e.message}`);
-  }
+  // The SSE payload carries the full post body in rmbMessage - no API fetch needed
+  const content = decodeHtmlEntities(message || "").trim();
 
   if (!content) {
     console.log(`[RMB] No content found for ${postId}`);
@@ -209,7 +218,7 @@ function processEvent(data, config, webhook) {
     const matchNation = config.rmbNations?.some(n => n.toLowerCase() === nation.toLowerCase());
     const matchRegion = config.rmbRegions?.some(r => r.toLowerCase() === region.toLowerCase());
     if (matchNation || matchRegion) {
-      handleRMB({ nation, postId, region, raw: str }, config, webhook).catch(e => console.error(`[RMB] Error: ${e.message}`));
+      handleRMB({ nation, postId, region, message: data.rmbMessage }, webhook).catch(e => console.error(`[RMB] Error: ${e.message}`));
     }
     return;
   }
@@ -217,7 +226,8 @@ function processEvent(data, config, webhook) {
   // Dispatch: @@nation@@ published "..." (Category: Subcategory)
   const dispatchMatch = str.match(/^@@([0-9a-z_-]+)@@ published.*?dispatch\/id=(\d+)[^>]*>([^<]+)<.*?\(([^:]+):\s*([^)]+)\)/);
   if (dispatchMatch) {
-    const [, nation, dispatchId, title, category, subcategory] = dispatchMatch;
+    const [, nation, dispatchId, rawTitle, category, subcategory] = dispatchMatch;
+    const title = decodeHtmlEntities(rawTitle);
     if (config.dispatchNations?.some(n => n.toLowerCase() === nation.toLowerCase())) {
       handleDispatch({ nation, dispatchId, title, category: `${category}: ${subcategory}`.trim() }, config, webhook).catch(e => console.error(`[Dispatch] Error: ${e.message}`));
     }
